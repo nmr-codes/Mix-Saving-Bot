@@ -17,6 +17,29 @@ def test_fmt_queued_contains_prefix(jid: str, sub: str) -> None:
     assert sub in text
 
 
+def test_fmt_busy_and_timeout_plain_text() -> None:
+    busy = formatters.fmt_busy()
+    assert "busy" in busy.lower() or "queue" in busy.lower()
+    to = formatters.fmt_timeout()
+    assert "timed out" in to.lower() or "timeout" in to.lower()
+
+
+def test_fmt_failed_fallback_without_code() -> None:
+    rec: JobRecord = {
+        "job_id": "x",
+        "status": "failed",
+        "request": {
+            "source_url": "u",
+            "correlation_id": "c",
+            "chat": {"chat_id": 1, "user_id": 2},
+        },
+        "created_at_unix": 0,
+        "updated_at_unix": 0,
+        "error_message_safe": "oops",
+    }
+    assert formatters.fmt_failed(rec) == "oops"
+
+
 def test_fmt_failed_includes_code() -> None:
     rec: JobRecord = {
         "job_id": "x",

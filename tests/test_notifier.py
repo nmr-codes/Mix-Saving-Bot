@@ -53,3 +53,4 @@ async def test_notifier_sends_document_for_small_file(tmp_path: Path) -> None:
     bot = AsyncMock()
     await TelegramNotifier(bot).notify_job_update(job)  # type: ignore[arg-type]
     bot.send_document.assert_awaited()
+    assert bot.send_document.call_args.kwargs.get("request_timeout") == 300

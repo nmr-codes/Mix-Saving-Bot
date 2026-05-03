@@ -127,7 +127,7 @@ async def run_worker_loop(
                             "job_id": job_id,
                             "source_url": req["source_url"],
                             "stage": p.get("stage"),
-                            "message": p.get("message"),
+                            "pipeline_message": p.get("message"),
                             "pct": p.get("pct"),
                             "detail": p,
                         },

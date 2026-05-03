@@ -1,0 +1,7 @@
+# Minimum versions aligned with pyproject.toml — install in Docker and local venvs.
+aiogram>=3.13.0
+aiohttp>=3.9.0
+pydantic>=2.5.0
+pydantic-settings>=2.2.0
+redis>=5.0.0
+yt-dlp>=2025.1.26

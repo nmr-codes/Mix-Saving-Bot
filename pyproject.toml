@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mix-saving-bot"
+version = "0.2.0"
+description = "Telegram media downloader: aiogram bot, yt-dlp, async jobs, disk cache."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram>=3.4",
+    "aiohttp>=3.9",
+    "pydantic-settings>=2.0",
+    "redis>=5",
+    "yt-dlp>=2025.1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.25"]
+
+[project.scripts]
+mix-saving-bot = "run_bot:run"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bot*", "core*", "downloader*", "services*"]
+
+[tool.setuptools.package-data]
+downloader = ["yt-dlp.conf"]
+services = ["yt-dlp.conf"]
+
+[tool.setuptools]
+py-modules = ["run_bot"]

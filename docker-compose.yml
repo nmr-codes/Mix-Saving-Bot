@@ -1,0 +1,26 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mix-saving-bot:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MIX_CACHE_ROOT_DIR: /data/cache
+    volumes:
+      - bot_cache:/data/cache
+    mem_limit: 1536m
+    cpus: "1.0"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ["redis"]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  bot_cache:
+  redis_data:

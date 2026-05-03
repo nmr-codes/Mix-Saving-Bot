@@ -111,8 +111,8 @@ def build_download_router(
     @r.message(CommandStart())
     async def cmd_start(message: Message) -> None:
         await message.answer(
-            "Send a media link — I’ll ask whether you want **video** or **audio**.\n"
-            "You can also skip the menu with /video `<url>` or /audio `<url>`.",
+            "Send a media link — I'll ask whether you want video or audio.\n"
+            "You can also skip the menu with /video or /audio followed by the link.",
         )
 
     @r.message(Command("help"))

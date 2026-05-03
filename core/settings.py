@@ -94,6 +94,9 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
+    #: If True, log every yt-dlp progress hook at INFO (can be very chatty).
+    DOWNLOAD_LOG_EVERY_PROGRESS: bool = False
+
     HIGH_WATER_QUEUE_DEPTH: int = 200
 
     RATE_LIMIT_MAX_EVENTS: int = 35

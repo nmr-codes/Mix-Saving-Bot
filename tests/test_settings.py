@@ -29,6 +29,12 @@ def test_get_settings_reads_bot_token(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.BOT_TOKEN == "abc:def"
 
 
+def test_download_log_every_progress_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MIX_DOWNLOAD_LOG_EVERY_PROGRESS", "true")
+    s = Settings()
+    assert s.DOWNLOAD_LOG_EVERY_PROGRESS is True
+
+
 def test_allowed_hosts_csv_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MIX_ALLOWED_HOSTS", "example.org,WWW.EXAMPLE.org")
     s = Settings()

@@ -84,17 +84,25 @@ class YtDlpMediaDownloader:
 
         loop = asyncio.get_running_loop()
 
+        ytdlp_hook = sync.build_ytdlp_progress_hook(
+            ctx.job_id,
+            ctx.source_url,
+            log_full_every_hook=self._settings.DOWNLOAD_LOG_EVERY_PROGRESS,
+        )
+
         def _sync_dl() -> tuple[Path, dict[str, Any]]:
             if mode == "audio":
                 return sync.download_audio_sync(
                     ctx.source_url,
                     work_dir=work,
                     config_path=self._config_path,
+                    progress_hook=ytdlp_hook,
                 )
             return sync.download_video_sync(
                 ctx.source_url,
                 work_dir=work,
                 config_path=self._config_path,
+                progress_hook=ytdlp_hook,
             )
 
         await on_progress({"stage": "downloading", "message": "download"})

@@ -69,8 +69,31 @@ async def run_worker_loop(
             req["source_url"],
             req.get("requested_format_id"),
         )
+        chat = req["chat"]
+        log.info(
+            "download job received",
+            extra={
+                "job_id": job_id,
+                "correlation_id": msg["correlation_id"],
+                "source_url": req["source_url"],
+                "requested_format_id": req.get("requested_format_id"),
+                "chat_id": chat["chat_id"],
+                "user_id": chat["user_id"],
+                "cache_key": cache_key,
+            },
+        )
+
         cached = await cache.get(cache_key)
         if cached is not None:
+            log.info(
+                "download cache hit, skipping fetch",
+                extra={
+                    "job_id": job_id,
+                    "cache_key": cache_key,
+                    "local_path": cached["local_path"],
+                    "byte_size": cached["byte_size"],
+                },
+            )
             await jobs.mark_running(job_id)
             out: JobOutputRef = {
                 "kind": "local_path",
@@ -86,14 +109,29 @@ async def run_worker_loop(
             return
 
         await metrics.inc("cache_miss_total")
+        log.info(
+            "download cache miss, fetching",
+            extra={"job_id": job_id, "cache_key": cache_key},
+        )
         await jobs.mark_running(job_id)
 
         work_dir = temp_work_dir(job_id)
         t0 = time.monotonic()
         try:
 
-            async def on_progress(_p: object) -> None:
-                return
+            async def on_progress(p: object) -> None:
+                if isinstance(p, dict):
+                    log.info(
+                        "download pipeline stage",
+                        extra={
+                            "job_id": job_id,
+                            "source_url": req["source_url"],
+                            "stage": p.get("stage"),
+                            "message": p.get("message"),
+                            "pct": p.get("pct"),
+                            "detail": p,
+                        },
+                    )
 
             async with sem:
                 ctx = DownloadJobContext(
@@ -147,6 +185,16 @@ async def run_worker_loop(
             assert items is not None and len(items) > 0
             primary = items[0]
             local_path = str(primary["local_path"])
+            log.info(
+                "download fetched, caching",
+                extra={
+                    "job_id": job_id,
+                    "local_path": local_path,
+                    "title": primary.get("title"),
+                    "duration_sec": primary.get("duration_sec"),
+                    "mime_type": primary.get("mime_type"),
+                },
+            )
             entry = await cache.put_from_path(cache_key, local_path)
             mime_raw = primary.get("mime_type")
             mime_type: str | None = mime_raw if isinstance(mime_raw, str) else None
@@ -164,6 +212,15 @@ async def run_worker_loop(
             if row:
                 await notifier.notify_job_update(row)
             await metrics.inc("jobs_completed_total")
+            log.info(
+                "download job succeeded",
+                extra={
+                    "job_id": job_id,
+                    "seconds": round(time.monotonic() - t0, 3),
+                    "output_byte_size": entry["byte_size"],
+                    "cached_path": entry["local_path"],
+                },
+            )
         finally:
             dt = time.monotonic() - t0
             await metrics.observe_duration_sec("download_duration_seconds", dt)

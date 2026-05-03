@@ -8,11 +8,15 @@ import os
 import re
 import shutil
 import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError as YtDlpDownloadErrorRaw
+
+from core.logging_setup import get_logger
 
 
 def project_root() -> Path:
@@ -123,6 +127,64 @@ def _raise_mapped_download_error(url: str, exc: YtDlpDownloadErrorRaw) -> None:
     if category is not None:
         raise category(msg, url=url, original=exc) from exc
     raise YtDlpDownloadError(msg, url=url, original=exc) from exc
+
+
+def _pct_from_progress_dict(d: dict[str, Any]) -> float | None:
+    total = d.get("total_bytes") or d.get("total_bytes_estimate")
+    downloaded = d.get("downloaded_bytes")
+    if isinstance(total, (int, float)) and isinstance(downloaded, (int, float)) and total > 0:
+        return round(100.0 * downloaded / total, 2)
+    return None
+
+
+def build_ytdlp_progress_hook(
+    job_id: str | None,
+    source_url: str,
+    *,
+    log_full_every_hook: bool = False,
+) -> Callable[[dict[str, Any]], None]:
+    """
+    Log yt-dlp ``progress_hooks`` payloads. When ``log_full_every_hook`` is True,
+    every hook emits INFO with the full dict; otherwise INFO is throttled and DEBUG
+    carries every update (use ``MIX_LOG_LEVEL=DEBUG``).
+    """
+    log = get_logger("downloader.ytdlp")
+    last_info = 0.0
+    last_info_pct = -100.0
+
+    def hook(d: dict[str, Any]) -> None:
+        nonlocal last_info, last_info_pct
+        now = time.monotonic()
+        status = d.get("status")
+        pct = _pct_from_progress_dict(d)
+
+        extra_base: dict[str, Any] = {
+            "job_id": job_id,
+            "source_url": source_url,
+            "ytdlp_progress": d,
+        }
+
+        if log_full_every_hook:
+            log.info("yt-dlp progress", extra=extra_base)
+            return
+
+        log.debug("yt-dlp progress", extra=extra_base)
+
+        emit_info = False
+        if status != "downloading":
+            emit_info = True
+        elif pct is None:
+            emit_info = (now - last_info) >= 2.0
+        else:
+            if pct - last_info_pct >= 10.0 or (now - last_info) >= 3.0:
+                emit_info = True
+                last_info_pct = pct
+
+        if emit_info:
+            last_info = now
+            log.info("yt-dlp progress", extra=extra_base)
+
+    return hook
 
 
 def _build_common_ydl_opts(
@@ -257,11 +319,14 @@ def download_video_sync(
     *,
     work_dir: Path,
     config_path: Path | None = None,
+    progress_hook: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     _validate_http_url(url)
     base = work_dir.resolve()
     base.mkdir(parents=True, exist_ok=True)
     opts = _build_common_ydl_opts(base, config_path=config_path)
+    if progress_hook is not None:
+        opts["progress_hooks"] = [progress_hook]
     opts.update(
         {
             "format": "bestvideo*+bestaudio/best",
@@ -289,11 +354,14 @@ def download_audio_sync(
     *,
     work_dir: Path,
     config_path: Path | None = None,
+    progress_hook: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     _validate_http_url(url)
     base = work_dir.resolve()
     base.mkdir(parents=True, exist_ok=True)
     opts = _build_common_ydl_opts(base, config_path=config_path)
+    if progress_hook is not None:
+        opts["progress_hooks"] = [progress_hook]
     opts.update(
         {
             "format": "bestaudio/best",

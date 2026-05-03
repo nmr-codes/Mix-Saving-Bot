@@ -11,6 +11,7 @@ __pycache__
 .vscode
 .idx
 *.md
+!README.md
 .pytest_cache
 .coverage
 dist

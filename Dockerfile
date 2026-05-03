@@ -17,13 +17,17 @@ WORKDIR /app
 RUN groupadd --system --gid 10001 mixbot \
     && useradd --system --uid 10001 --gid mixbot --home /app --shell /usr/sbin/nologin mixbot
 
-COPY requirements.txt .
+# Dependency layer (invalidates less often than app code).
+COPY requirements.txt pyproject.toml README.md ./
 
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Application + packaged install (console script ``mix-saving-bot`` from ``pyproject.toml``).
+COPY . .
+
+RUN pip install --no-cache-dir --no-deps . \
     && mkdir -p /data/cache \
-    && chown mixbot:mixbot /data/cache
-
-COPY --chown=mixbot:mixbot . .
+    && chown -R mixbot:mixbot /app /data/cache
 
 ENV MIX_CACHE_ROOT_DIR=/data/cache
 
@@ -31,7 +35,8 @@ USER mixbot
 
 VOLUME ["/data/cache"]
 
+# Import smoke only — does not call Telegram (suitable for Compose / Railway health probes).
 HEALTHCHECK --interval=45s --timeout=15s --start-period=40s --retries=4 \
-    CMD python -c "import aiogram, yt_dlp; import mixbot.app"
+    CMD python -c "import aiogram, yt_dlp; import bot.app, core.settings, run_bot"
 
-CMD ["python", "-m", "mixbot"]
+CMD ["mix-saving-bot"]

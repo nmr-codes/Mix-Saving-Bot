@@ -1,6 +1,6 @@
 # Deploying mix-saving-bot
 
-This project runs the Telegram UI as `python -m mixbot` inside Docker. The smoke test for the queue stack alone remains `python -m services`.
+This project runs the Telegram UI as **`mix-saving-bot`** (or `python run_bot.py`) inside Docker. The queue stack alone can be exercised with `python -m services` where applicable.
 
 ---
 

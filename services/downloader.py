@@ -276,6 +276,7 @@ def download_video(
         {
             "format": "bestvideo*+bestaudio/best",
             "merge_output_format": "mp4",
+            "remuxvideo": "mp4",
         }
     )
 

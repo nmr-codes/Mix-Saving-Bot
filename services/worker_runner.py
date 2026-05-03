@@ -120,18 +120,30 @@ async def run_worker_loop(
         try:
 
             async def on_progress(p: object) -> None:
-                if isinstance(p, dict):
-                    log.info(
-                        "download pipeline stage",
-                        extra={
-                            "job_id": job_id,
-                            "source_url": req["source_url"],
-                            "stage": p.get("stage"),
-                            "pipeline_message": p.get("message"),
-                            "pct": p.get("pct"),
-                            "detail": p,
-                        },
-                    )
+                if not isinstance(p, dict):
+                    return
+                stage = p.get("stage")
+                pct = p.get("pct")
+                msg = p.get("message")
+                parts = [f"stage={stage}"]
+                if isinstance(msg, str) and msg:
+                    parts.append(msg)
+                if pct is not None:
+                    parts.append(f"pct={pct}")
+                log.info(
+                    "download pipeline | " + " | ".join(parts),
+                    extra={
+                        "job_id": job_id,
+                        "source_url": req["source_url"],
+                        "stage": stage,
+                        "pipeline_message": msg,
+                        "pct": pct,
+                    },
+                )
+                log.debug(
+                    "download pipeline detail",
+                    extra={"job_id": job_id, "detail": p},
+                )
 
             async with sem:
                 ctx = DownloadJobContext(

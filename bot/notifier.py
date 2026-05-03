@@ -13,10 +13,35 @@ log = get_logger("bot.notifier")
 # Bot API practical limit for free uploads (~50 MiB).
 MAX_DOCUMENT_BYTES = 49 * 1024 * 1024
 
+_TELEGRAM_FILENAME_MAX = 180
+
+
+def _outgoing_document_filename(job: JobRecord, path: Path, *, mime_hint: str | None) -> str:
+    """Force .mp4 for video / .mp3 for audio in the Telegram attachment name."""
+    if mime_hint == "audio/mpeg":
+        ext = ".mp3"
+    elif mime_hint == "video/mp4":
+        ext = ".mp4"
+    else:
+        fmt = (job["request"].get("requested_format_id") or "video").strip().lower()
+        ext = ".mp3" if fmt in ("audio", "mp3", "bestaudio") else ".mp4"
+
+    stem = (path.stem or "media").strip().replace("/", "_").replace("\\", "_")
+    max_stem = max(1, _TELEGRAM_FILENAME_MAX - len(ext))
+    if len(stem) > max_stem:
+        stem = stem[:max_stem]
+    return f"{stem}{ext}"
+
 
 class TelegramNotifier:
-    def __init__(self, bot: Bot) -> None:
+    def __init__(
+        self,
+        bot: Bot,
+        *,
+        document_upload_timeout_sec: int = 300,
+    ) -> None:
         self._bot = bot
+        self._document_upload_timeout_sec = document_upload_timeout_sec
 
     async def notify_job_update(self, job: JobRecord) -> None:
         chat_id = job["request"]["chat"]["chat_id"]
@@ -50,9 +75,17 @@ class TelegramNotifier:
                     **kwargs,
                 )
                 return
-            fname = path.name
+            fname = _outgoing_document_filename(
+                job,
+                path,
+                mime_hint=primary.get("mime_type") if isinstance(primary.get("mime_type"), str) else None,
+            )
             doc = FSInputFile(path=str(path), filename=fname)
-            await self._bot.send_document(document=doc, **kwargs)
+            await self._bot.send_document(
+                document=doc,
+                request_timeout=self._document_upload_timeout_sec,
+                **kwargs,
+            )
             return
 
         if status == "failed":

@@ -65,6 +65,36 @@ def test_pct_from_progress_dict() -> None:
     )
 
 
+def test_format_ytdlp_progress_line_downloading() -> None:
+    line = se.format_ytdlp_progress_line(
+        {
+            "status": "downloading",
+            "downloaded_bytes": 1048576,
+            "total_bytes": 4194304,
+            "speed": 524288,
+            "eta": 6,
+            "tmpfilename": "/tmp/x/video.mp4.part",
+        },
+        job_id="j1",
+        source_url="https://www.instagram.com/reel/abc",
+    )
+    assert "yt-dlp" in line
+    assert "j1" in line
+    assert "www.instagram.com" in line
+    assert "25.0%" in line
+    assert "ETA 6s" in line
+
+
+def test_format_ytdlp_progress_line_finished() -> None:
+    line = se.format_ytdlp_progress_line(
+        {"status": "finished", "filename": "/out/media.mp4"},
+        job_id="j2",
+        source_url="https://youtu.be/x",
+    )
+    assert "finished" in line
+    assert "media.mp4" in line
+
+
 def test_classify_message_geo() -> None:
     assert se._classify_message("Not available in your country") is se.GeoBlockedError
 
@@ -113,6 +143,8 @@ def test_build_progress_hook_log_full_every(caplog: pytest.LogCaptureFixture) ->
     hook({"status": "finished"})
     infos = [r for r in caplog.records if r.name == "downloader.ytdlp" and r.levelno == logging.INFO]
     assert len(infos) >= 2
+    assert all("yt-dlp" in r.getMessage() for r in infos)
+    assert getattr(infos[0], "ytdlp_progress", None) is not None
 
 
 def test_build_progress_hook_throttles_info(caplog: pytest.LogCaptureFixture) -> None:
@@ -149,7 +181,7 @@ def test_build_progress_hook_non_downloading_emits_info(
     hook = se.build_ytdlp_progress_hook(None, "https://x", log_full_every_hook=False)
     hook({"status": "finished", "filename": "x.mp4"})
     assert any(
-        r.levelno == logging.INFO and "yt-dlp progress" in r.getMessage()
+        r.levelno == logging.INFO and "yt-dlp" in r.getMessage() and "finished" in r.getMessage()
         for r in caplog.records
         if r.name == "downloader.ytdlp"
     )

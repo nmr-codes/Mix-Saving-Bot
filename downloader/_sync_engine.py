@@ -137,6 +137,61 @@ def _pct_from_progress_dict(d: dict[str, Any]) -> float | None:
     return None
 
 
+def _humanize_bytes(n: float) -> str:
+    x = float(n)
+    for unit, scale in (("GiB", 1 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)):
+        if x >= scale:
+            return f"{x / scale:.2f} {unit}"
+    return f"{int(x)} B"
+
+
+def format_ytdlp_progress_line(
+    d: dict[str, Any],
+    *,
+    job_id: str | None = None,
+    source_url: str | None = None,
+) -> str:
+    """One-line status for terminal / JSON ``msg`` (no ANSI, no mega payload)."""
+    status = d.get("status") or "?"
+    parts: list[str] = []
+    if job_id:
+        parts.append(f"job={job_id}")
+    if source_url:
+        from urllib.parse import urlparse
+
+        host = urlparse(source_url).netloc or ""
+        if host:
+            parts.append(f"host={host}")
+    parts.append(f"status={status}")
+
+    pct = _pct_from_progress_dict(d)
+    if pct is not None:
+        parts.append(f"{pct}%")
+
+    if status == "downloading":
+        d_b = d.get("downloaded_bytes")
+        t_b = d.get("total_bytes") or d.get("total_bytes_estimate")
+        if isinstance(d_b, (int, float)):
+            seg = _humanize_bytes(float(d_b))
+            if isinstance(t_b, (int, float)) and float(t_b) > 0:
+                seg = f"{seg} / {_humanize_bytes(float(t_b))}"
+            parts.append(seg)
+        spd = d.get("speed")
+        if isinstance(spd, (int, float)) and spd > 0:
+            parts.append(f"{_humanize_bytes(float(spd))}/s")
+        eta = d.get("eta")
+        if isinstance(eta, (int, float)) and eta >= 0 and eta != float("inf"):
+            parts.append(f"ETA {int(eta)}s")
+
+    label = d.get("filename") or d.get("tmpfilename")
+    if isinstance(label, str) and label:
+        leaf = Path(label).name
+        if leaf:
+            parts.append(leaf[-120:])
+
+    return "yt-dlp | " + " | ".join(parts)
+
+
 def build_ytdlp_progress_hook(
     job_id: str | None,
     source_url: str,
@@ -144,31 +199,36 @@ def build_ytdlp_progress_hook(
     log_full_every_hook: bool = False,
 ) -> Callable[[dict[str, Any]], None]:
     """
-    Log yt-dlp ``progress_hooks`` payloads. When ``log_full_every_hook`` is True,
-    every hook emits INFO with the full dict; otherwise INFO is throttled and DEBUG
-    carries every update (use ``MIX_LOG_LEVEL=DEBUG``).
+    Log yt-dlp ``progress_hooks``. INFO lines are short one-liners for the terminal; full
+    payloads go to DEBUG, or to INFO when ``log_full_every_hook`` (``MIX_DOWNLOAD_LOG_EVERY_PROGRESS``).
     """
     log = get_logger("downloader.ytdlp")
     last_info = 0.0
     last_info_pct = -100.0
+
+    def _small_extra(d: dict[str, Any], status: object, pct: float | None) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "job_id": job_id,
+            "source_url": source_url,
+            "ytdlp_status": status,
+        }
+        if pct is not None:
+            out["pct"] = pct
+        return out
 
     def hook(d: dict[str, Any]) -> None:
         nonlocal last_info, last_info_pct
         now = time.monotonic()
         status = d.get("status")
         pct = _pct_from_progress_dict(d)
-
-        extra_base: dict[str, Any] = {
-            "job_id": job_id,
-            "source_url": source_url,
-            "ytdlp_progress": d,
-        }
+        line = format_ytdlp_progress_line(d, job_id=job_id, source_url=source_url)
+        small = _small_extra(d, status, pct)
 
         if log_full_every_hook:
-            log.info("yt-dlp progress", extra=extra_base)
+            log.info(line, extra={**small, "ytdlp_progress": d})
             return
 
-        log.debug("yt-dlp progress", extra=extra_base)
+        log.debug(line, extra={**small, "ytdlp_progress": d})
 
         emit_info = False
         if status != "downloading":
@@ -182,7 +242,7 @@ def build_ytdlp_progress_hook(
 
         if emit_info:
             last_info = now
-            log.info("yt-dlp progress", extra=extra_base)
+            log.info(line, extra=small)
 
     return hook
 
@@ -331,6 +391,8 @@ def download_video_sync(
         {
             "format": "bestvideo*+bestaudio/best",
             "merge_output_format": "mp4",
+            # Remux single-file formats (e.g. webm/mkv) to .mp4 when ffmpeg can copy streams.
+            "remuxvideo": "mp4",
         }
     )
     try:

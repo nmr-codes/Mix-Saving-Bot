@@ -70,6 +70,9 @@ class Settings(BaseSettings):
 
     BOT_TOKEN: str = Field(default="", description="Telegram bot token")
 
+    #: aiohttp request timeout for Bot API document uploads (seconds). Default HTTP timeout is too low for multi‑MiB files on slow uplinks.
+    TELEGRAM_DOCUMENT_UPLOAD_TIMEOUT_SEC: int = Field(default=300, ge=30, le=3600)
+
     QUEUE_BACKEND: Literal["memory", "redis"] = "memory"
     REDIS_URL: str | None = None
     REDIS_QUEUE_STREAM_KEY: str = "mixdl:jobs"
@@ -94,7 +97,7 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
-    #: If True, log every yt-dlp progress hook at INFO (can be very chatty).
+    #: If True, every yt-dlp progress hook logs at INFO **including** the full ``ytdlp_progress`` dict (heavy). Otherwise INFO is a short one-line summary; use ``MIX_LOG_LEVEL=DEBUG`` for full payloads every hook.
     DOWNLOAD_LOG_EVERY_PROGRESS: bool = False
 
     HIGH_WATER_QUEUE_DEPTH: int = 200

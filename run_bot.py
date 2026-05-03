@@ -35,7 +35,10 @@ async def main() -> None:
     setup_json_logging(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
     bot: Bot = create_bot(settings)
-    notifier = TelegramNotifier(bot)
+    notifier = TelegramNotifier(
+        bot,
+        document_upload_timeout_sec=settings.TELEGRAM_DOCUMENT_UPLOAD_TIMEOUT_SEC,
+    )
 
     waiter = JobTerminalWaiter()
     job_service = JobServiceImpl(InMemoryJobRepository(), waiter=waiter)
